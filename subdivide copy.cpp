@@ -200,7 +200,7 @@ void Mesh::divideEdge(HalfEdge *e) {
   	  SlVector3 x = 0.5 * (e->v->x + ep->v->x);
 	  v->x = x;
 	  v->nx = x;
-	  v->flag = false;
+	  v->v = false;
 	  return;
   }
 
@@ -242,9 +242,7 @@ void Mesh::divideEdge(HalfEdge *e) {
   pair->next = e2pair;
 
   // std::cout << "compute positions for new vertices..." << std::endl;
-  SlVector3 x = (1.0/2.0) * (e2pair->v->x + e->v->x);
-  // SlVector3 x = (3.0/8.0) * (e2pair->v->x + e->v->x);
-  /* 
+  SlVector3 x = (3.0/8.0) * (e2pair->v->x + e->v->x);
   if (LOOP) 
   {
 	if (e2pair->next->v->flag) {
@@ -259,11 +257,10 @@ void Mesh::divideEdge(HalfEdge *e) {
 	  x += (1.0/8.0) * e->next->next->v->x;
 	}
   }
-  */
+  
   v->x = x;
   v->nx = x;
   v->flag = false;
-  
 }
 
 void Mesh::triangulateFace(Face *face) {
@@ -375,17 +372,16 @@ void Mesh::subdivide() {
   std::cout << "subdividing HalfEdge..." << std::endl;
   int size = vertices.size();
   std::cout << "vertex size: " << size << std::endl;
-  
   for (unsigned int i=0; i<vertices.size(); i++) {
 	Vertex *v = vertices[i];
 	v->flag = true;
 	if (LOOP) {
 	  int count = 0;
-	  //SlVector3 x(0.0);
+	  SlVector3 x(0.0);
 	  HalfEdge *e = v->e;
 		// // e = e->next->pair;
 		// if (e == v->e) break;
-		// ...
+	 //  }
 
 	 //  std::cout << "compute beta..." << std::endl;
 	 //  double beta;
