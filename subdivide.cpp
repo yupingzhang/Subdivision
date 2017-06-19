@@ -1,10 +1,14 @@
 #include "slVector.H"
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <unordered_map>
 #include <cassert>
 #include <getopt.h>
+#include <string>
+#include <iomanip> 
+#include <cstdlib>
 
 class SlTri {
   unsigned int indices[3];
@@ -29,6 +33,7 @@ class Mesh {
 	int index;
 	SlVector3 nx;
 	SlVector3 x;
+	SlVector3 vel;
 	HalfEdge *e;
   };
 
@@ -55,11 +60,9 @@ class Mesh {
 
 public: 
   ~Mesh();
-  Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &triangles);
-  Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlQuad> &quads);
+  Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &triangles, const std::vector<SlVector3> &velocity);
   void divideEdge(HalfEdge *e);
   void triangulateFace(Face *f);
-  void splitFace(Face *f);
   void subdivide();
   void writeObj(char *fname);
   void printMesh();
@@ -90,7 +93,7 @@ public:
   }
 };
 
-Mesh::Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &triangles) {
+Mesh::Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &triangles, const std::vector<SlVector3> &velocity) {
   std::unordered_map<std::pair<int, int>, HalfEdge *, pairhash > edgeMap;
   std::unordered_map<int, Vertex * > vertexMap;
 
@@ -119,6 +122,7 @@ Mesh::Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &tri
 		e->v = v;
 		v->e = e;
 		v->x = vertices[tri[j]];
+		v->vel = velocity[tri[j]];
 		vertexMap.insert(std::make_pair(tri[j],e->v));
 	  }
 	}
@@ -133,48 +137,6 @@ Mesh::Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &tri
   LOOP = true;
 }
 
-Mesh::Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlQuad> &quads) {
-  std::unordered_map<std::pair<int, int>, HalfEdge *, pairhash > edgeMap;
-  std::unordered_map<int, Vertex * > vertexMap;
-
-  for (unsigned int q=0; q<quads.size(); q++) {
-	const SlQuad &quad = quads[q];
-	Face *f = new Face();
-	HalfEdge *fedges[4];
-	for (unsigned int i=0; i<4; i++) {
-	  unsigned int j = (i+1)%4;
-	  HalfEdge *e = new HalfEdge();
-	  this->edges.push_back(e);
-	  e->f = f;
-	  fedges[i] = e;
-	  if (edgeMap.count(std::pair<int,int>(quad[j],quad[i]))) {
-		HalfEdge *pair = edgeMap.find(std::pair<int,int>(quad[j],quad[i]))->second;
-		e->pair = pair;
-		pair->pair = e;
-	  } else {
-		edgeMap.insert(std::make_pair(std::make_pair(quad[i], quad[j]), e));
-	  }
-	  if (vertexMap.count(quad[j]) > 0) {
-		e->v = vertexMap.find(quad[j])->second;
-	  } else {
-		Vertex *v = new Vertex();
-		this->vertices.push_back(v);
-		e->v = v;
-		v->e = e;
-		v->x = vertices[quad[j]];
-		vertexMap.insert(std::make_pair(quad[j],e->v));
-	  }
-	}
-	for (int i=0; i<4; i++) {
-	  int j = (i+1)%4;
-	  fedges[i]->next = fedges[j];
-	  fedges[j]->prev = fedges[i];
-	}
-	f->e = fedges[0];  
-	faces.push_back(f);
-  }
-  LOOP = false;
-}
 
 void Mesh::divideEdge(HalfEdge *e) {
   if (!e->v->flag) return;
@@ -200,6 +162,8 @@ void Mesh::divideEdge(HalfEdge *e) {
   	  SlVector3 x = 0.5 * (e->v->x + ep->v->x);
 	  v->x = x;
 	  v->nx = x;
+	  // velocity
+	  v->vel = 0.5 * (e->v->vel + ep->v->vel);
 	  v->flag = false;
 	  return;
   }
@@ -243,25 +207,25 @@ void Mesh::divideEdge(HalfEdge *e) {
 
   // std::cout << "compute positions for new vertices..." << std::endl;
   SlVector3 x = (1.0/2.0) * (e2pair->v->x + e->v->x);
-  // SlVector3 x = (3.0/8.0) * (e2pair->v->x + e->v->x);
-  /* 
-  if (LOOP) 
-  {
-	if (e2pair->next->v->flag) {
-	  x += (1.0/8.0) * e2pair->next->v->x;
-	} else {
-	  x += (1.0/8.0) * e2pair->next->next->v->x;
-	}
-	if (e->next->v->flag) {
-	  x += (1.0/8.0) * e->next->v->x;
-	} else {
-	  assert (e->next->next->v->flag);
-	  x += (1.0/8.0) * e->next->next->v->x;
-	}
-  }
-  */
+ //  SlVector3 x = (3.0/8.0) * (e2pair->v->x + e->v->x);
+ //  if (LOOP) 
+ //  {
+	// if (e2pair->next->v->flag) {
+	//   x += (1.0/8.0) * e2pair->next->v->x;
+	// } else {
+	//   x += (1.0/8.0) * e2pair->next->next->v->x;
+	// }
+	// if (e->next->v->flag) {
+	//   x += (1.0/8.0) * e->next->v->x;
+	// } else {
+	//   assert (e->next->next->v->flag);
+	//   x += (1.0/8.0) * e->next->next->v->x;
+	// }
+ //  }
+  
   v->x = x;
   v->nx = x;
+  v->vel = (1.0/2.0) * (e2pair->v->vel + e->v->vel);
   v->flag = false;
   
 }
@@ -310,67 +274,6 @@ void Mesh::triangulateFace(Face *face) {
   }
 }
 
-void Mesh::splitFace(Face *face) {
-  HalfEdge *e = face->e;
-  if (!e->v->flag) {
-	e = e->next;
-  }
-  Vertex *v = new Vertex();
-  vertices.push_back(v);
-  v->nx = v->x = 0.25*(e->v->x + e->next->next->v->x + e->next->next->next->next->v->x +
-	  e->next->next->next->next->next->next->v->x);
-
-  HalfEdge *pe = new HalfEdge();
-  edges.push_back(pe);
-  HalfEdge *pp = new HalfEdge();
-  edges.push_back(pp);
-
-  face->e = pp;
-
-  pe->v = e->prev->v;
-  pp->v = v;
-  v->e = pp;
-
-  pe->next = e;
-  pe->prev = pp;
-  pp->next = pe;
-  pp->prev = e->prev;
-  pe->pair = pp;
-  pp->pair = pe;
-  e->prev->next = pp;
-  e->prev = pe;
-  
-  for (int i=0; i<3; i++) {
-	Face *f = new Face();
-	faces.push_back(f);
-	HalfEdge *ne = new HalfEdge();
-	edges.push_back(ne);
-	HalfEdge *pair = new HalfEdge();
-	edges.push_back(pair);
-
-	f->e = e;
-	ne->v = v;
-	pair->v = e->next->v;
-	
-	ne->pair = pair;
-	pair->pair = ne;
-	
-	ne->prev = e->next;
-	ne->next = pe;
-	pair->next = e->next->next;
-	pair->prev = pp;
-
-	
-	ne->next->prev = ne;
-	ne->prev->next = ne;
-	pair->next->prev = pair;
-	pair->prev->next = pair;
-	
-	pe = pair;
-	e = pair->next;
-  }
-}
-
 void Mesh::subdivide() { 
   std::cout << "subdividing HalfEdge..." << std::endl;
   int size = vertices.size();
@@ -379,24 +282,7 @@ void Mesh::subdivide() {
   for (unsigned int i=0; i<vertices.size(); i++) {
 	Vertex *v = vertices[i];
 	v->flag = true;
-	if (LOOP) {
-	  int count = 0;
-	  //SlVector3 x(0.0);
-	  HalfEdge *e = v->e;
-		// // e = e->next->pair;
-		// if (e == v->e) break;
-		// ...
-
-	 //  std::cout << "compute beta..." << std::endl;
-	 //  double beta;
-	 //  if (count > 3) {
-		// beta = 3.0 / (8.0*count);
-	 //  } else {
-		// beta = 3.0/16.0;
-	 //  }
-	  // v->nx = beta * x + (1.0-count*beta) * v->x;
-	  v->nx = v->x;
-	}
+	v->nx = v->x;
   }
   
   std::cout << "dividing edges..." << std::endl;
@@ -405,30 +291,14 @@ void Mesh::subdivide() {
 
   std::cout << "triangulate faces..." << std::endl;
   n = faces.size();
-  if (LOOP) {
-	for (unsigned int i=0; i<n; i++) triangulateFace(faces[i]);
-  } else {
-	for (unsigned int i=0; i<n; i++) splitFace(faces[i]);
-  }	
-  if (LOOP) {
-	for (unsigned int i=0; i<vertices.size(); i++) vertices[i]->x = vertices[i]->nx;
-  } else {
-	for (unsigned int i=0; i<vertices.size(); i++) {
-	  Vertex *v = vertices[i];
-	  if (!v->flag) continue;
-	  int k=0;
-	  SlVector3 x(0.0), y(0.0);
-	  HalfEdge *e = v->e;
-	  while (true) {
-		x += e->pair->v->x;
-		y += e->pair->next->v->x;
-		k++;
-		e = e->next->pair;
-		if (e == v->e) break;
-	  }
-	  v->x = v->nx = (6.0 * x + 1.0 * y + (4.0*k*k - 7*k) * v->x) / (4*k*k);
-	}
-  }
+ 
+  for (unsigned int i=0; i<n; i++) triangulateFace(faces[i]);
+  
+  // for (unsigned int i=0; i<vertices.size(); i++) 
+  // {
+  // 	vertices[i]->x = vertices[i]->nx;
+  // }
+  
 }
 
 void Mesh::writeObj(char *fname) {
@@ -439,6 +309,8 @@ void Mesh::writeObj(char *fname) {
 	Vertex *v = vertices[i];
 	v->index = i;
 	out<<"v "<<v->x[0]<<" "<<v->x[1]<<" "<<v->x[2]<<std::endl;
+	// add velocity
+	out << "nv " << v->vel[0] << " " << v->vel[1] << " " << v->vel[2] << std::endl;
   }
   for (unsigned int i=0; i<faces.size(); i++) {
 	Face *f = faces[i];
@@ -456,66 +328,71 @@ void Mesh::writeObj(char *fname) {
   }
 }
 
-void readObject(char *fname, std::vector<SlVector3> &vertices, std::vector<SlTri> &triangles) {
+void readObject(char *fname, std::vector<SlVector3> &vertices, std::vector<SlTri> &triangles, std::vector<SlVector3> &velocity) 
+{
   std::ifstream in(fname, std::ios::in);
-  char c;
   SlVector3 pt;
+  SlVector3 pvel;
   SlTri t;
   
   if (!in.good()) {
 	std::cerr<<"Unable to open file \""<<fname<<"\""<<std::endl;
 	abort();
   }
-  
-  while (in.good()) {
-	in >> c;
-	if (!in.good()) break;
-	if (c == 'v') {
-	  in >> pt[0] >> pt[1] >> pt[2];
-	  vertices.push_back(pt);
-	} else if (c == 'f') {
-	  in >> t[0] >> t[1] >> t[2];
-	  t[0]-=1; t[1]-=1; t[2]-=1;
-	  triangles.push_back(t);
-	}
+
+  std::string line;
+  while (getline(in, line))
+    {        
+        if (line.substr(0,2) == "v ")
+        {
+        	std::istringstream s(line.substr(2));
+            s >> pt[0]; s >> pt[1]; s >> pt[2];
+            vertices.push_back(pt);
+        }
+        else if (line.substr(0,2) == "f ")
+        {
+        	std::vector<unsigned int> tokens;
+	  		char* pch = strtok (&line[2]," /");
+  	  		while (pch != NULL)
+ 	  		{
+    		  tokens.push_back(atoi(pch));
+        	  pch = strtok (NULL, " /");
+      		}
+
+      		t[0] = tokens[0] - 1;
+     		t[1] = tokens[2] - 1;
+     		t[2] = tokens[4] - 1;
+	  		triangles.push_back(t);
+        }
+        else if (line.substr(0,2) == "nv")
+        {
+        	/* parse velocity */
+			std::istringstream s(line.substr(2));
+            s >> pvel[0]; s >> pvel[1]; s >> pvel[2];
+        	velocity.push_back(pvel);
+        }
+
   }
 
   std::cout << "Read file: " << fname << std::endl;
   std::cout << "Vertices: " << vertices.size() << std::endl;
-  std::cout << "Triangles: " << triangles.size() << std::endl;
-}
-
-void readObject(char *fname, std::vector<SlVector3> &vertices, std::vector<SlQuad> &quads) {
-  std::ifstream in(fname, std::ios::in);
-  char c;
-  SlVector3 pt;
-  SlQuad q;
-  
-  if (!in.good()) {
-	std::cerr<<"Unable to open file \""<<fname<<"\""<<std::endl;
-	abort();
-  }
-  
-  while (in.good()) {
-	in >> c;
-	if (!in.good()) break;
-	if (c == 'v') {
-	  in >> pt[0] >> pt[1] >> pt[2];
-	  vertices.push_back(pt);
-	} else if (c == 'f') {
-	  in >> q[0] >> q[1] >> q[2] >> q[3];
-	  q[0]-=1; q[1]-=1; q[2]-=1; q[3] -=1;
-	  quads.push_back(q);
-	}
-  }
+  std::cout << "Triangles: " << triangles.size() << std::endl << std::endl;
 }
 
 int main(int argc, char *argv[]) {
+
+  if (argc < 4)
+  {
+  	printf("Usage: ./subdivide input_folder/ output_folder/ subdiv_num");
+  	return 0;
+  }
+
   int c;
   bool LOOP = true;
   std::vector<SlVector3> vertices;
+  std::vector<SlVector3> velocity;
   std::vector<SlTri> triangles;
-  std::vector<SlQuad> quads;
+  
   Mesh *m;
   while ((c = getopt(argc, argv, "c")) != -1) {
 	switch(c) {
@@ -526,22 +403,32 @@ int main(int argc, char *argv[]) {
 	  abort();
 	}
   }
-  if (LOOP) {
-	readObject(argv[optind++], vertices, triangles);
-	m = new Mesh(vertices, triangles);
-	std::cout << "Created a new mesh." << std::endl;
-  } else {
-	readObject(argv[optind++], vertices, quads);
-	m = new Mesh(vertices, quads);
+
+  std::string path = argv[1];
+  // mkdir
+  std::string new_path = argv[2];
+  system(("mkdir -p "+new_path).c_str());
+  // 100 frames in each folder
+  int count = 1;
+  for (int i = 0; i < count; ++i)
+  {
+  	std::ostringstream ss;
+    ss << std::setw( 5 ) << std::setfill( '0' ) << i + 1;
+  	std::string filename = path + ss.str() + "_00.obj";
+	readObject(&filename[0], vertices, triangles, velocity); 
+	m = new Mesh(vertices, triangles, velocity);
+	// std::cout << "Created a new mesh." << std::endl;
+	// std::cout << "Subdivide " << argv[3] << " times." << std::endl;
+  	for (int i=0; i<atoi(argv[3]); i++) {
+  		std::cout << "subdividing " << i+1 << std::endl;
+		m->subdivide();
+  	}
+  
+  	std::string output = new_path + ss.str() + "_00.obj";
+    m->writeObj(&output[0]);
+    delete m;
   }
 
-  std::cout << "Subdivide " << argv[optind+1] << " times." << std::endl;
-  for (int i=0; i<atoi(argv[optind+1]); i++) {
-  	std::cout << "subdividing " << i << std::endl;
-	m->subdivide();
-  }
-  m->writeObj(argv[optind]);
-  delete m;
 }
 
 Mesh::~Mesh() {
