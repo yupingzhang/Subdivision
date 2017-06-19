@@ -389,11 +389,7 @@ int main(int argc, char *argv[]) {
 
   int c;
   bool LOOP = true;
-  std::vector<SlVector3> vertices;
-  std::vector<SlVector3> velocity;
-  std::vector<SlTri> triangles;
-  
-  Mesh *m;
+
   while ((c = getopt(argc, argv, "c")) != -1) {
 	switch(c) {
 	case 'c':
@@ -409,9 +405,13 @@ int main(int argc, char *argv[]) {
   std::string new_path = argv[2];
   system(("mkdir -p "+new_path).c_str());
   // 100 frames in each folder
-  int count = 1;
+  int count = 10;
   for (int i = 0; i < count; ++i)
   {
+  	Mesh *m;
+  	std::vector<SlVector3> vertices;
+    std::vector<SlVector3> velocity;
+    std::vector<SlTri> triangles;
   	std::ostringstream ss;
     ss << std::setw( 5 ) << std::setfill( '0' ) << i + 1;
   	std::string filename = path + ss.str() + "_00.obj";
