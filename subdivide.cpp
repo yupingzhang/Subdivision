@@ -9,6 +9,7 @@
 #include <cstring>
 #include <iomanip> 
 #include <cstdlib>
+#include <experimental/filesystem>
 
 class SlTri {
   unsigned int indices[3];
@@ -401,32 +402,41 @@ int main(int argc, char *argv[]) {
   }
 
   std::string path = argv[1];
-  // mkdir
-  std::string new_path = argv[2];
-  system(("mkdir -p "+new_path).c_str());
-  // 100 frames in each folder
-  int count = 100;
-  for (int i = 0; i < count; ++i)
+  std::string out_path = argv[2];
+  for (auto &iter : std::filesystem::directory_iterator(path)) 
   {
-  	Mesh *m;
-  	std::vector<SlVector3> vertices;
-    std::vector<SlVector3> velocity;
-    std::vector<SlTri> triangles;
-  	std::ostringstream ss;
-    ss << std::setw( 5 ) << std::setfill( '0' ) << i + 1;
-  	std::string filename = path + ss.str() + "_00.obj";
-	readObject(&filename[0], vertices, triangles, velocity); 
-	m = new Mesh(vertices, triangles, velocity);
-	// std::cout << "Created a new mesh." << std::endl;
-	// std::cout << "Subdivide " << argv[3] << " times." << std::endl;
-  	for (int i=0; i<atoi(argv[3]); i++) {
-  		std::cout << "subdividing " << i+1 << std::endl;
-		m->subdivide();
-  	}
-  
-  	std::string output = new_path + ss.str() + "_00.obj";
-    m->writeObj(&output[0]);
-    delete m;
+    if( !stdfs::is_regular_file(*iter) )
+    {
+      // mkdir
+      cout << iter << endl;
+      std::string new_path = out_path + string(iter);
+      system(("mkdir -p "+new_path).c_str());
+
+      // 100 frames in each folder
+      int count = 100;
+      for (int i = 0; i < count; ++i)
+      {
+        Mesh *m;
+        std::vector<SlVector3> vertices;
+        std::vector<SlVector3> velocity;
+        std::vector<SlTri> triangles;
+        std::ostringstream ss;
+        ss << std::setw( 5 ) << std::setfill( '0' ) << i + 1;
+        std::string filename = path + ss.str() + "_00.obj";
+        readObject(&filename[0], vertices, triangles, velocity); 
+        m = new Mesh(vertices, triangles, velocity);
+        // std::cout << "Created a new mesh." << std::endl;
+        // std::cout << "Subdivide " << argv[3] << " times." << std::endl;
+        for (int i=0; i<atoi(argv[3]); i++) {
+          std::cout << "subdividing " << i+1 << std::endl;
+          m->subdivide();
+        }
+      
+        std::string output = new_path + ss.str() + "_00.obj";
+        m->writeObj(&output[0]);
+        delete m;
+      }
+    }
   }
 
 }
