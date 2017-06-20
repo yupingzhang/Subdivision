@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <cassert>
 #include <getopt.h>
-#include <string>
+#include <cstring>
 #include <iomanip> 
 #include <cstdlib>
 
@@ -405,7 +405,7 @@ int main(int argc, char *argv[]) {
   std::string new_path = argv[2];
   system(("mkdir -p "+new_path).c_str());
   // 100 frames in each folder
-  int count = 10;
+  int count = 100;
   for (int i = 0; i < count; ++i)
   {
   	Mesh *m;
