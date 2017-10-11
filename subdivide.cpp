@@ -9,21 +9,15 @@
 #include <cstring>
 #include <iomanip> 
 #include <cstdlib>
-#include <experimental/filesystem>
+// #include <experimental/filesystem>
 
 class SlTri {
   unsigned int indices[3];
-public:
-  inline unsigned int &operator[](const unsigned int &i) { return indices[i];};
-  inline unsigned int operator[](const unsigned int &i) const { return indices[i];};
+  public:
+    inline unsigned int &operator[](const unsigned int &i) { return indices[i];};
+    inline unsigned int operator[](const unsigned int &i) const { return indices[i];};
 };
 
-class SlQuad {
-  unsigned int indices[4];
-public:
-  inline unsigned int &operator[](const unsigned int &i) { return indices[i];};
-  inline unsigned int operator[](const unsigned int &i) const { return indices[i];};
-};
 
 class Mesh {
   class HalfEdge;
@@ -34,7 +28,7 @@ class Mesh {
 	int index;
 	SlVector3 nx;
 	SlVector3 x;
-	SlVector3 vel;
+	// SlVector3 vel;
 	HalfEdge *e;
   };
 
@@ -61,12 +55,14 @@ class Mesh {
 
 public: 
   ~Mesh();
-  Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &triangles, const std::vector<SlVector3> &velocity);
+  Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &triangles);
   void divideEdge(HalfEdge *e);
   void triangulateFace(Face *f);
   void subdivide();
   void writeObj(char *fname);
   void printMesh();
+
+  bool issmooth;
 };
 
 void Mesh::printMesh() {
@@ -94,47 +90,51 @@ public:
   }
 };
 
-Mesh::Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &triangles, const std::vector<SlVector3> &velocity) {
+Mesh::Mesh(const std::vector<SlVector3> &vertices, const std::vector<SlTri> &triangles) {
   std::unordered_map<std::pair<int, int>, HalfEdge *, pairhash > edgeMap;
   std::unordered_map<int, Vertex * > vertexMap;
 
   for (unsigned int t=0; t<triangles.size(); t++) {
-	const SlTri &tri = triangles[t];
-	Face *f = new Face();
-	HalfEdge *fedges[3];
-	for (unsigned int i=0; i<3; i++) {
-	  unsigned int j = (i+1)%3;
-	  HalfEdge *e = new HalfEdge();
-	  this->edges.push_back(e);
-	  e->f = f;
-	  fedges[i] = e;
-	  if (edgeMap.count(std::make_pair(tri[j],tri[i]))) {
-		HalfEdge *pair = edgeMap.find(std::make_pair(tri[j],tri[i]))->second;
-		e->pair = pair;
-		pair->pair = e;
-	  } else {
-		edgeMap.insert(std::make_pair(std::make_pair(tri[i], tri[j]), e));
-	  }
-	  if (vertexMap.count(tri[j]) > 0) {
-		e->v = vertexMap.find(tri[j])->second;
-	  } else {
-		Vertex *v = new Vertex();
-		this->vertices.push_back(v);
-		e->v = v;
-		v->e = e;
-		v->x = vertices[tri[j]];
-		v->vel = velocity[tri[j]];
-		vertexMap.insert(std::make_pair(tri[j],e->v));
-	  }
-	}
-	for (int i=0; i<3; i++) {
-	  int j = (i+1)%3;
-	  fedges[i]->next = fedges[j];
-	  fedges[j]->prev = fedges[i];
-	}
-	f->e = fedges[0];  
-	faces.push_back(f);
+  	const SlTri &tri = triangles[t];
+  	Face *f = new Face();
+  	HalfEdge *fedges[3];
+  	for (unsigned int i=0; i<3; i++) {
+  	  unsigned int j = (i+1)%3;
+  	  HalfEdge *e = new HalfEdge();
+  	  this->edges.push_back(e);
+  	  e->f = f;
+  	  fedges[i] = e;
+  	  if (edgeMap.count(std::make_pair(tri[j],tri[i]))) {
+  		    HalfEdge *pair = edgeMap.find(std::make_pair(tri[j],tri[i]))->second;
+  		    e->pair = pair;
+  		    pair->pair = e;
+  	  } 
+      else {
+  		    edgeMap.insert(std::make_pair(std::make_pair(tri[i], tri[j]), e));
+  	  }
+  	  if (vertexMap.count(tri[j]) > 0) {
+  		    e->v = vertexMap.find(tri[j])->second;
+  	  } 
+      else {
+  		    Vertex *v = new Vertex();
+      		this->vertices.push_back(v);
+      		e->v = v;
+      		v->e = e;
+      		v->x = vertices[tri[j]];
+      		// v->vel = velocity[tri[j]];
+      		vertexMap.insert(std::make_pair(tri[j],e->v));
+  	  }
+  	}
+  	for (int i=0; i<3; i++) {
+  	  int j = (i+1)%3;
+  	  fedges[i]->next = fedges[j];
+  	  fedges[j]->prev = fedges[i];
+  	}
+
+  	f->e = fedges[0];  
+  	faces.push_back(f);
   }
+
   LOOP = true;
 }
 
@@ -146,7 +146,7 @@ void Mesh::divideEdge(HalfEdge *e) {
   // handle boundary case
   if (e->pair == NULL)
   {
-  	  v = new Vertex();
+  	v = new Vertex();
 	  vertices.push_back(v);
 	  e2 = new HalfEdge();
 	  edges.push_back(e2);
@@ -158,13 +158,13 @@ void Mesh::divideEdge(HalfEdge *e) {
 	  e2->next = e;
 	  e->prev->next = e2;
 	  e->prev = e2;
-  	  // std::cout << "compute positions for new vertices at boundary..." << std::endl;
-  	  HalfEdge *ep = e2->prev;    // e->prev  next->next
-  	  SlVector3 x = 0.5 * (e->v->x + ep->v->x);
+  	// std::cout << "compute positions for new vertices at boundary..." << std::endl;
+  	HalfEdge *ep = e2->prev;    // e->prev  next->next
+  	SlVector3 x = 0.5 * (e->v->x + ep->v->x);
 	  v->x = x;
 	  v->nx = x;
 	  // velocity
-	  v->vel = 0.5 * (e->v->vel + ep->v->vel);
+	  // v->vel = 0.5 * (e->v->vel + ep->v->vel);
 	  v->flag = false;
 	  return;
   }
@@ -207,26 +207,34 @@ void Mesh::divideEdge(HalfEdge *e) {
   pair->next = e2pair;
 
   // std::cout << "compute positions for new vertices..." << std::endl;
-  SlVector3 x = (1.0/2.0) * (e2pair->v->x + e->v->x);
- //  SlVector3 x = (3.0/8.0) * (e2pair->v->x + e->v->x);
- //  if (LOOP) 
- //  {
-	// if (e2pair->next->v->flag) {
-	//   x += (1.0/8.0) * e2pair->next->v->x;
-	// } else {
-	//   x += (1.0/8.0) * e2pair->next->next->v->x;
-	// }
-	// if (e->next->v->flag) {
-	//   x += (1.0/8.0) * e->next->v->x;
-	// } else {
-	//   assert (e->next->next->v->flag);
-	//   x += (1.0/8.0) * e->next->next->v->x;
-	// }
- //  }
+  SlVector3 x;
+
+  if (issmooth) {
+    x = (3.0/8.0) * (e2pair->v->x + e->v->x);
+    if (LOOP) 
+    {
+      if (e2pair->next->v->flag) {
+        x += (1.0/8.0) * e2pair->next->v->x;
+      } 
+      else {
+        x += (1.0/8.0) * e2pair->next->next->v->x;
+      }
+      if (e->next->v->flag) {
+        x += (1.0/8.0) * e->next->v->x;
+      } 
+      else {
+        assert (e->next->next->v->flag);
+        x += (1.0/8.0) * e->next->next->v->x;
+      }
+    }
+  }
+  else {
+    x = (1.0/2.0) * (e2pair->v->x + e->v->x);
+  }
   
   v->x = x;
   v->nx = x;
-  v->vel = (1.0/2.0) * (e2pair->v->vel + e->v->vel);
+  // v->vel = (1.0/2.0) * (e2pair->v->vel + e->v->vel);
   v->flag = false;
   
 }
@@ -311,7 +319,7 @@ void Mesh::writeObj(char *fname) {
 	v->index = i;
 	out<<"v "<<v->x[0]<<" "<<v->x[1]<<" "<<v->x[2]<<std::endl;
 	// add velocity
-	out << "nv " << v->vel[0] << " " << v->vel[1] << " " << v->vel[2] << std::endl;
+	// out << "nv " << v->vel[0] << " " << v->vel[1] << " " << v->vel[2] << std::endl;
   }
   for (unsigned int i=0; i<faces.size(); i++) {
 	Face *f = faces[i];
@@ -329,11 +337,10 @@ void Mesh::writeObj(char *fname) {
   }
 }
 
-void readObject(char *fname, std::vector<SlVector3> &vertices, std::vector<SlTri> &triangles, std::vector<SlVector3> &velocity) 
+void readObject(char *fname, std::vector<SlVector3> &vertices, std::vector<SlTri> &triangles) 
 {
   std::ifstream in(fname, std::ios::in);
   SlVector3 pt;
-  SlVector3 pvel;
   SlTri t;
   
   if (!in.good()) {
@@ -353,43 +360,37 @@ void readObject(char *fname, std::vector<SlVector3> &vertices, std::vector<SlTri
         else if (line.substr(0,2) == "f ")
         {
         	std::vector<unsigned int> tokens;
-	  		char* pch = strtok (&line[2]," /");
+	  		  char* pch = strtok (&line[2]," /");
   	  		while (pch != NULL)
- 	  		{
-    		  tokens.push_back(atoi(pch));
-        	  pch = strtok (NULL, " /");
-      		}
+   	  		{
+      		    tokens.push_back(atoi(pch));
+          	  pch = strtok (NULL, " /");
+        	}
 
-      		t[0] = tokens[0] - 1;
-     		t[1] = tokens[2] - 1;
-     		t[2] = tokens[4] - 1;
-	  		triangles.push_back(t);
-        }
-        else if (line.substr(0,2) == "nv")
-        {
-        	/* parse velocity */
-			std::istringstream s(line.substr(2));
-            s >> pvel[0]; s >> pvel[1]; s >> pvel[2];
-        	velocity.push_back(pvel);
+        	t[0] = tokens[0] - 1;
+       		t[1] = tokens[1] - 1;
+       		t[2] = tokens[2] - 1;
+  	  		triangles.push_back(t);
         }
 
   }
 
-  std::cout << "Read file: " << fname << std::endl;
-  std::cout << "Vertices: " << vertices.size() << std::endl;
-  std::cout << "Triangles: " << triangles.size() << std::endl << std::endl;
+  // std::cout << "Read file: " << fname << std::endl;
+  // std::cout << "Vertices: " << vertices.size() << std::endl;
+  // std::cout << "Triangles: " << triangles.size() << std::endl;
 }
 
 int main(int argc, char *argv[]) {
 
   if (argc < 4)
   {
-  	printf("Usage: ./subdivide input_folder/ output_folder/ subdiv_num");
+  	printf("Usage: ./subdivide input_folder/ output_folder/ subdiv_num (issmooth)\n");
   	return 0;
   }
 
   int c;
   bool LOOP = true;
+  bool smooth = false;
 
   while ((c = getopt(argc, argv, "c")) != -1) {
 	switch(c) {
@@ -403,43 +404,38 @@ int main(int argc, char *argv[]) {
 
   std::string path = argv[1];
   std::string out_path = argv[2];
-  for (auto &iter : std::filesystem::directory_iterator(path)) 
+  if (argc > 4)
   {
-    if( !stdfs::is_regular_file(*iter) )
-    {
-      // mkdir
-      cout << iter << endl;
-      std::string new_path = out_path + string(iter);
-      system(("mkdir -p "+new_path).c_str());
-
-      // 100 frames in each folder
-      int count = 100;
-      for (int i = 0; i < count; ++i)
-      {
-        Mesh *m;
-        std::vector<SlVector3> vertices;
-        std::vector<SlVector3> velocity;
-        std::vector<SlTri> triangles;
-        std::ostringstream ss;
-        ss << std::setw( 5 ) << std::setfill( '0' ) << i + 1;
-        std::string filename = path + ss.str() + "_00.obj";
-        readObject(&filename[0], vertices, triangles, velocity); 
-        m = new Mesh(vertices, triangles, velocity);
-        // std::cout << "Created a new mesh." << std::endl;
-        // std::cout << "Subdivide " << argv[3] << " times." << std::endl;
-        for (int i=0; i<atoi(argv[3]); i++) {
-          std::cout << "subdividing " << i+1 << std::endl;
-          m->subdivide();
-        }
-      
-        std::string output = new_path + ss.str() + "_00.obj";
-        m->writeObj(&output[0]);
-        delete m;
-      }
-    }
+      smooth = bool(argv[4]);
   }
 
+  // 100 frames in each folder
+  int count = 100;
+  for (int i = 0; i < count; ++i)
+  {
+    Mesh *m;
+    std::vector<SlVector3> vertices;
+    // std::vector<SlVector3> velocity;
+    std::vector<SlTri> triangles;
+    std::ostringstream ss;
+    ss << std::setw( 5 ) << std::setfill( '0' ) << i;
+    std::string filename = path + ss.str() + "_00.obj";
+    readObject(&filename[0], vertices, triangles); 
+    m = new Mesh(vertices, triangles);
+    m->issmooth = smooth;
+    // std::cout << "Created a new mesh." << std::endl;
+    // std::cout << "Subdivide " << argv[3] << " times." << std::endl;
+    for (int i=0; i<atoi(argv[3]); i++) {
+      std::cout << "subdividing " << i+1 << std::endl;
+      m->subdivide();
+    }
+  
+    std::string output = out_path + ss.str() + "_00.obj";
+    m->writeObj(&output[0]);
+    delete m;
+  }
 }
+
 
 Mesh::~Mesh() {
   for (unsigned int i=0; i<vertices.size(); i++) delete vertices[i];
